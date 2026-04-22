@@ -130,6 +130,8 @@ io.on('connection', (socket) => {
     });
 });
 
-const server.listen(HTTP_PORT, '0.0.0.0', () => {
+const HTTP_PORT = process.env.PORT || 3000;
+
+server.listen(HTTP_PORT, '0.0.0.0', () => {
   console.log(⁠ Server running on port ${HTTP_PORT} ⁠);
-}); = process.env.PORT || 3000;
+});
